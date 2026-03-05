@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
+import { writeFile, unlink } from 'fs/promises';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
 
@@ -44,6 +44,23 @@ export async function POST(request: Request) {
     console.error('Ошибка загрузки:', error);
     return NextResponse.json({ error: 'Ошибка при сохранении модели' }, { status: 500 });
   }
+}
+
+export async function DELETE(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const id = parseInt(searchParams.get('id') || '');
+
+  if (!id) return NextResponse.json({ error: 'ID не указан' }, { status: 400 });
+
+  const model = await prisma.model.delete({ where: { id } });
+  
+  // Удаляем файлы с сервера (опционально)
+  try {
+    await unlink(path.join(process.cwd(), 'private_uploads', model.glbPath));
+    await unlink(path.join(process.cwd(), 'private_uploads', model.usdzPath));
+  } catch (e) { console.error('Файлы не найдены'); }
+
+  return NextResponse.json({ success: true });
 }
 
 // Получение списка всех моделей (GET-запрос)
