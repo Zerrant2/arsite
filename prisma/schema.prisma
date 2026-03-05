@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// Таблица с нашими 3D моделями
+model Model {
+  id        Int       @id @default(autoincrement())
+  name      String
+  glbPath   String    // Путь к защищенному файлу .glb на сервере
+  usdzPath  String    // Путь к защищенному файлу .usdz на сервере
+  createdAt DateTime  @default(now())
+  sessions  Session[] // Связь с временными сессиями
+}
+
+// Таблица с временными ссылками (токенами на 30 минут)
+model Session {
+  id        String   @id @default(uuid()) // Уникальный токен, например: 123e4567-e89b-12d3-a456...
+  modelId   Int
+  model     Model    @relation(fields: [modelId], references:[id], onDelete: Cascade)
+  expiresAt DateTime // Точное время, когда ссылка "сгорит"
+  createdAt DateTime @default(now())
+}
