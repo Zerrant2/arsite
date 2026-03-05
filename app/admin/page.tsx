@@ -45,14 +45,14 @@ export default function AdminPage() {
     else alert('Неверный пароль');
   };
 
-  if (!authenticated) {
+ if (!authenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-xl shadow-lg border w-80">
-          <h2 className="text-xl font-bold mb-4 text-black">Вход в админку</h2>
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-8">
+        <div className="bg-white p-8 rounded-xl shadow-lg border w-80 text-black">
+          <h2 className="text-xl font-bold mb-4">Вход в админку</h2>
           <input 
             type="password" 
-            className="w-full border p-2 mb-4 text-black rounded"
+            className="w-full border p-2 mb-4 rounded"
             onChange={(e) => setPassword(e.target.value)}
           />
           <button onClick={handleLogin} className="w-full bg-blue-600 text-white p-2 rounded">Войти</button>
@@ -60,7 +60,6 @@ export default function AdminPage() {
       </div>
     );
   }
-
   
 
   
