@@ -85,6 +85,26 @@ export default function ViewPage({ params }: { params: Promise<{ token: string }
         const viewer = document.getElementById('viewer');
         const arButton = document.getElementById('ar-button');
 
+        // 1. ОПРЕДЕЛЯЕМ ЯНДЕКС БРАУЗЕР
+        const isYandexBrowser = /YaBrowser/i.test(navigator.userAgent);
+
+        if (isYandexBrowser) {
+          // Создаем красивое предупреждение
+          const warning = document.createElement('div');
+          warning.innerHTML = '⚠️ Для наилучшего качества AR рекомендуем открыть ссылку в <b>Google Chrome</b>';
+          warning.style.cssText = 'position: absolute; top: 10px; left: 10px; right: 10px; background: rgba(255,200,0,0.9); color: black; padding: 10px; border-radius: 8px; text-align: center; font-size: 14px; z-index: 50; box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-family: sans-serif;';
+          
+          // Добавляем крестик для закрытия
+          const closeBtn = document.createElement('span');
+          closeBtn.innerHTML = ' ✖';
+          closeBtn.style.cursor = 'pointer';
+          closeBtn.onclick = () => warning.remove();
+          warning.appendChild(closeBtn);
+
+          document.body.appendChild(warning);
+        }
+
+
         // Ждем события готовности самого model-viewer
         viewer.addEventListener('load', () => {
           // Даем компоненту еще немного времени на инициализацию AR-модулей
