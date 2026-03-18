@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { prisma } from '@/lib/prisma'; // Замените на прямой импорт модели через API, если серверный рендеринг ругается
 import Script from 'next/script';
 import React from 'react';
 
-// Типы для TS
 declare global {
   namespace JSX {
     interface IntrinsicElements {
@@ -24,26 +22,66 @@ declare global {
 }
 
 export default function ViewPage({ params }: { params: Promise<{ token: string }> }) {
-  // В клиентском компоненте лучше использовать хуки для параметров
-  const [token, setToken] = useState<string | null>(null);
+  const[token, setToken] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  const[showPrompt, setShowPrompt] = useState(false);
+  const [chromeLink, setChromeLink] = useState('');
 
   useEffect(() => {
+    const ua = navigator.userAgent;
+    
+    // 1. Кто перед нами?
+    const isAndroid = /Android/i.test(ua);
+    const isHuawei = /Huawei|HONOR|HMSCore/i.test(ua);
+    const isYandex = /YaBrowser/i.test(ua);
+    const isInApp = /Telegram|VK|Instagram/i.test(ua);
+    
+    // 2. Поддерживает ли браузер WebXR (честная проверка для неизвестных браузеров)
+    const isWebXRSupported = 'xr' in navigator;
+
+    // 3. ФОРМУЛА ИДЕАЛЬНОГО UX:
+    // Показываем окно, ЕСЛИ это Android, И это НЕ Huawei, И (это Яндекс ИЛИ Внутри-приложения ИЛИ нет WebXR)
+    const needsChromePrompt = isAndroid && !isHuawei && (isYandex || isInApp || !isWebXRSupported);
+
+    if (needsChromePrompt) {
+      const urlWithoutProtocol = window.location.host + window.location.pathname + window.location.search;
+      
+      setChromeLink(`intent://${urlWithoutProtocol}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(window.location.href)};end`);
+      setShowPrompt(true);
+    }
+
+    // 4. Загружаем модель в любом случае
     params.then((p) => {
       setToken(p.token);
-      // Загружаем данные сессии через API
       fetch(`/api/session/${p.token}`)
         .then(res => res.json())
-        .then(data => { setSession(data); setLoading(false); });
+        .then(data => { 
+          setSession(data); 
+          setLoading(false); 
+        });
     });
   }, [params]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Загрузка...</div>;
+  // Функция копирования ссылки (для тех браузеров, что блокируют переход)
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      alert('✅ Ссылка скопирована! Откройте приложение Google Chrome и вставьте её в адресную строку.');
+    }).catch(() => {
+      alert('Не удалось скопировать. Пожалуйста, скопируйте ссылку вручную из адресной строки.');
+    });
+  };
+
+  if (loading) {
+    return <div className="min-h-[100dvh] flex items-center justify-center bg-white text-black">Загрузка модели...</div>;
+  }
+
   if (!session || new Date() > new Date(session.expiresAt)) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 text-center">
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-gray-100 p-4 text-center">
         <h1 className="text-3xl font-bold text-red-500 mb-4">Время истекло</h1>
+        <p className="text-gray-700">Пожалуйста, отсканируйте QR-код заново.</p>
       </div>
     );
   }
@@ -52,7 +90,47 @@ export default function ViewPage({ params }: { params: Promise<{ token: string }
   const usdzUrl = `/api/files/usdz?token=${token}`;
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-white">
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-white relative">
+      
+      {/* ВСПЛЫВАЮЩЕЕ ОКНО РЕКОМЕНДАЦИИ */}
+      {showPrompt && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-md">
+          <div className="bg-white p-8 rounded-2xl max-w-sm text-center shadow-2xl">
+            <h2 className="text-2xl font-bold mb-3 text-gray-800">Рекомендуем Chrome</h2>
+            <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+              Ваш текущий браузер блокирует 3D/AR функции. Для просмотра модели перейдите в <b>Google Chrome</b>.
+            </p>
+            <div className="flex flex-col gap-3">
+              
+              {/* Попытка 1: Автоматический переход */}
+              <a 
+                href={chromeLink} 
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-md"
+              >
+                1. Открыть в Chrome
+              </a>
+              
+              {/* Попытка 2: Ручное копирование (если Яндекс блокирует кнопку выше) */}
+              <button 
+                onClick={copyLink}
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-md"
+              >
+                2. Скопировать ссылку
+              </button>
+
+              {/* Отмена */}
+              <button 
+                onClick={() => setShowPrompt(false)}
+                className="w-full mt-2 text-gray-400 hover:text-gray-600 font-medium py-2 px-4 transition-colors underline"
+              >
+                Остаться здесь (может работать с ошибками)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3D ПЛЕЕР */}
       <Script 
         type="module" 
         src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js" 
@@ -85,36 +163,12 @@ export default function ViewPage({ params }: { params: Promise<{ token: string }
         const viewer = document.getElementById('viewer');
         const arButton = document.getElementById('ar-button');
 
-        // 1. ОПРЕДЕЛЯЕМ ЯНДЕКС БРАУЗЕР
-        const isYandexBrowser = /YaBrowser/i.test(navigator.userAgent);
-
-        if (isYandexBrowser) {
-          // Создаем красивое предупреждение
-          const warning = document.createElement('div');
-          warning.innerHTML = '⚠️ Для наилучшего качества AR рекомендуем открыть ссылку в <b>Google Chrome</b>';
-          warning.style.cssText = 'position: absolute; top: 10px; left: 10px; right: 10px; background: rgba(255,200,0,0.9); color: black; padding: 10px; border-radius: 8px; text-align: center; font-size: 14px; z-index: 50; box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-family: sans-serif;';
-          
-          // Добавляем крестик для закрытия
-          const closeBtn = document.createElement('span');
-          closeBtn.innerHTML = ' ✖';
-          closeBtn.style.cursor = 'pointer';
-          closeBtn.onclick = () => warning.remove();
-          warning.appendChild(closeBtn);
-
-          document.body.appendChild(warning);
-        }
-
-
-        // Ждем события готовности самого model-viewer
         viewer.addEventListener('load', () => {
-          // Даем компоненту еще немного времени на инициализацию AR-модулей
           setTimeout(() => {
             if (!viewer.canActivateAR) {
               console.log('AR недоступен, режим подиума включен');
               if (arButton) arButton.style.display = 'none';
               viewer.autoRotate = true; 
-            } else {
-              console.log('AR успешно активирован');
             }
           }, 1000);
         });
